@@ -67,7 +67,7 @@ jobs:
                 script: |
                   cd /home/${{ secrets.REMOTE_USER }}/app
                   echo "🧲 Pulling latest image..."
-                  docker-compose pull
+                  docker compose pull
                   echo "🔁 Rebuilding containers..."
-                  docker-compose up -d --force-recreate
+                  docker compose up -d --force-recreate
                   echo "✅ Deployment complete!"
