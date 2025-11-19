@@ -1,0 +1,73 @@
+name: CI
+
+on:
+    push:
+        branches:
+            - master
+
+jobs:
+    build:
+        name: Build  Docker Image
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v5
+
+            - name: Build Docker Image
+              run: docker build -t angular-app:latest .
+              working-directory: angular/angular
+
+            - name: Save Docker Image 
+              run: docker save angular-app:latest -o angular-app.tar
+
+            - name: Upload Docker image artifact
+              uses: actions/upload-artifact@v4
+              with:
+                name: angular-docker-image
+                path: angular-app.tar
+
+    push:
+        name: Push to Docker Hub
+        runs-on: ubuntu-latest
+        needs: build
+
+
+        steps:
+            - name: Download Docker image artifact
+              uses: actions/download-artifact@v4
+              with:
+                name: angular-docker-image
+                path: .
+            - name: Load Docker Image
+              run: docker load -i angular-app.tar
+            
+            - name: Login to Docker Hub
+              uses: docker/login-action@v3
+              with:
+                username: ${{ secrets.DOCKER_HUB_USERNAME }}
+                password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+            - name: Tag and Push Docker Image
+              run: |
+                docker tag angular-app:latest ${{ secrets.DOCKER_HUB_USERNAME}}/angular-app:latest
+                docker push ${{ secrets.DOCKER_HUB_USERNAME}}/angular-app:latest
+    
+    deploy:
+        name: Deploy to Remote Server
+        runs-on: ubuntu-latest
+        needs: push
+
+        steps:
+            - name: Deploy to Remoter Server
+              uses: appleboy/ssh-action@v1.2.0
+              with:
+                host: ${{ secrets.REMOTE_HOST }}
+                username: ${{ secrets.REMOTE_USER }}
+                key: ${{ secrets.REMOTE_SSH_KEY }}
+                script: |
+                  cd /home/${{ secrets.REMOTE_USER }}/app
+                  echo "🧲 Pulling latest image..."
+                  docker compose pull
+                  echo "🔁 Rebuilding containers..."
+                  docker compose up -d --force-recreate
+                  echo "✅ Deployment complete!"
